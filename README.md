@@ -360,3 +360,4 @@ Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
 ---
 
 **ScolApp Visuel** - L'excellence à votre portée 🎓 # Projet-Scolapp
+# Projet-Scolapp
