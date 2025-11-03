@@ -14,3 +14,17 @@ dist
 *.log
 .DS_Store
 Thumbs.db 
+coverage
+workspace
+nvm
+node
+*.zip
+*.rar
+*.sql
+*.exe
+*.msi
+*.AppImage
+*.dmg
+*.deb
+*.rpm
+public/electron.js
