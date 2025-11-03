@@ -12,6 +12,7 @@
 !/public/**
 !/electron/**
 !/database/**
+!/ai/**
 
 # 3) Keep root-level files commonly needed for the project
 !/.gitignore
