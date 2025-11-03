@@ -341,8 +341,8 @@ mysql -u root -p scolapp < backup_file.sql
 
 Pour toute question ou problème :
 
-- 📧 Email : support@scolapp.com
-- 📱 Téléphone : (+237) 699 99 99 99
+- 📧 Email : nsounjou1@gmail.com
+- 📱 Téléphone : (+237) 698 38 51 86
 - 🐛 Issues : Utilisez les issues GitHub
 
 ## 📄 Licence
@@ -360,7 +360,4 @@ Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
 ---
 
 **ScolApp Visuel** - L'excellence à votre portée 🎓 # Projet-Scolapp
-# Projet-Scolapp
-# Projet-Scolapp
-# Projet-Scolapp
-# Projet-Scolapp
+
