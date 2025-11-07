@@ -33,6 +33,7 @@ type PaymentRow = {
 
 export default function FinancePaymentsSection() {
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [filtered, setFiltered] = useState<PaymentRow[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -46,6 +47,9 @@ export default function FinancePaymentsSection() {
   // Impression rapide par ligne (même reçu que l'encaissement)
   const [showRowReceipt, setShowRowReceipt] = useState(false);
   const [rowReceiptData, setRowReceiptData] = useState<any | null>(null);
+  const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
+  const [pendingPaymentData, setPendingPaymentData] = useState<any | null>(null);
+  const [amountInWords, setAmountInWords] = useState<string>("");
 
   // Filtres
   const [schoolYears, setSchoolYears] = useState<string[]>([]);
@@ -311,12 +315,36 @@ export default function FinancePaymentsSection() {
 
   const saveEditedPayment = async () => {
     if (!editingPayment) return;
+
+    // Préparer les données pour la confirmation
+    setPendingPaymentData({
+      payment: editingPayment,
+      updatedFields: {
+        amount: editFields.amount ? Number(editFields.amount) : editingPayment.amount,
+        method: editFields.method || editingPayment.method,
+        reason: editFields.reason || editingPayment.reason,
+        date: editFields.date ? new Date(editFields.date).toISOString() : editingPayment.date
+      }
+    });
+    setAmountInWords(numberToWords(editFields.amount ? Number(editFields.amount) : editingPayment.amount));
+    setShowConfirmationDialog(true);
+  };
+
+  const confirmEditedPayment = async () => {
+    if (!pendingPaymentData) return;
+
+    const { payment, updatedFields } = pendingPaymentData;
+    setIsSubmitting(true);
+    setShowConfirmationDialog(false);
+    setPendingPaymentData(null);
+    setAmountInWords("");
+
     try {
-      const payload: any = { id: editingPayment.id };
-      if (editFields.amount) payload.amount = Number(editFields.amount);
-      if (typeof editFields.method !== 'undefined') payload.method = editFields.method;
-      if (typeof editFields.reason !== 'undefined') payload.reason = editFields.reason;
-      if (editFields.date) payload.date = new Date(editFields.date).toISOString();
+      const payload: any = { id: payment.id };
+      if (updatedFields.amount !== payment.amount) payload.amount = updatedFields.amount;
+      if (updatedFields.method !== payment.method) payload.method = updatedFields.method;
+      if (updatedFields.reason !== payment.reason) payload.reason = updatedFields.reason;
+      if (updatedFields.date !== payment.date) payload.date = updatedFields.date;
 
       const res = await fetch('/api/finance/payments', {
         method: 'PATCH',
@@ -326,7 +354,7 @@ export default function FinancePaymentsSection() {
       if (!res.ok) throw new Error('Échec de la mise à jour');
 
       // Générer automatiquement un reçu de paiement
-      await generatePaymentReceipt(editingPayment, payload);
+      await generatePaymentReceipt(payment, payload);
 
       // rafraichir la liste
       setEditOpen(false);
@@ -335,7 +363,49 @@ export default function FinancePaymentsSection() {
       setSchoolYear(prev => `${prev}`);
     } catch (e) {
       console.error('Erreur mise à jour paiement:', e);
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  // Fonction pour convertir un nombre en lettres (simplifiée pour le français)
+  const numberToWords = (num: number): string => {
+    const units = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf'];
+    const teens = ['dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
+    const tens = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante-dix', 'quatre-vingt', 'quatre-vingt-dix'];
+
+    if (num === 0) return 'zéro';
+
+    let words = '';
+    let n = Math.floor(num);
+
+    if (n >= 1000000) {
+      words += numberToWords(Math.floor(n / 1000000)) + ' million ';
+      n %= 1000000;
+    }
+
+    if (n >= 1000) {
+      words += numberToWords(Math.floor(n / 1000)) + ' mille ';
+      n %= 1000;
+    }
+
+    if (n >= 100) {
+      words += units[Math.floor(n / 100)] + ' cent ';
+      n %= 100;
+    }
+
+    if (n >= 20) {
+      words += tens[Math.floor(n / 10)];
+      if (n % 10 > 0) {
+        words += '-' + units[n % 10];
+      }
+    } else if (n >= 10) {
+      words += teens[n - 10];
+    } else if (n > 0) {
+      words += units[n];
+    }
+
+    return words.trim();
   };
 
   // Fonction pour générer automatiquement un reçu de paiement
@@ -678,6 +748,46 @@ export default function FinancePaymentsSection() {
               <Button variant="outline" onClick={() => setEditOpen(false)}>Annuler</Button>
               <Button onClick={saveEditedPayment}>Enregistrer</Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Boîte de dialogue de confirmation */}
+      <Dialog open={showConfirmationDialog} onOpenChange={setShowConfirmationDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmer la modification du paiement</DialogTitle>
+          </DialogHeader>
+          {pendingPaymentData && (
+            <div className="space-y-4">
+              <div>
+                <strong>Élève:</strong> {pendingPaymentData.payment.studentName || '—'}
+              </div>
+              <div>
+                <strong>Montant en chiffres:</strong> {pendingPaymentData.updatedFields.amount.toLocaleString('fr-FR')} XAF
+              </div>
+              <div>
+                <strong>Montant en lettres:</strong> {amountInWords} francs CFA
+              </div>
+              <div>
+                <strong>Mode de paiement:</strong> {pendingPaymentData.updatedFields.method || '—'}
+              </div>
+              <div>
+                <strong>Motif:</strong> {pendingPaymentData.updatedFields.reason || '—'}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Voulez-vous vraiment modifier ce paiement ?
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConfirmationDialog(false)}>
+              Annuler
+            </Button>
+            <Button onClick={confirmEditedPayment} disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirmer
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

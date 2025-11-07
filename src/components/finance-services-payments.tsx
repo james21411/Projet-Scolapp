@@ -6,6 +6,8 @@ import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "./ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
+import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Student } from "@/services/studentService";
 import jsPDF from 'jspdf';
@@ -38,6 +40,9 @@ export function FinanceServicesPayments({ student, schoolYear }: { student: Stud
   const [showServiceReceipt, setShowServiceReceipt] = useState(false);
   const [showDossierDialog, setShowDossierDialog] = useState(false);
   const [dossierProps, setDossierProps] = useState<any | null>(null);
+  const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
+  const [pendingPaymentData, setPendingPaymentData] = useState<any | null>(null);
+  const [amountInWords, setAmountInWords] = useState<string>("");
 
   useEffect(() => {
     (async () => {
@@ -80,7 +85,31 @@ export function FinanceServicesPayments({ student, schoolYear }: { student: Stud
       toast({ variant: "destructive", title: "Montant invalide", description: "Saisissez un montant valide" });
       return;
     }
+    // Validation: ne pas dépasser le montant configuré pour le service
+    if (parsedAmount > service.amount) {
+      toast({ variant: "destructive", title: "Montant supérieur", description: `Le montant ne peut pas dépasser ${service.amount.toLocaleString('fr-FR')} XAF pour ce service` });
+      return;
+    }
+
+    // Préparer les données pour la confirmation
+    setPendingPaymentData({
+      service,
+      parsedAmount,
+      method
+    });
+    setAmountInWords(numberToWords(parsedAmount));
+    setShowConfirmationDialog(true);
+  };
+
+  const confirmPayment = async () => {
+    if (!pendingPaymentData) return;
+
+    const { service, parsedAmount, method } = pendingPaymentData;
     setIsSubmitting(true);
+    setShowConfirmationDialog(false);
+    setPendingPaymentData(null);
+    setAmountInWords("");
+
     try {
       const body = {
         studentId: student.id,
@@ -118,6 +147,46 @@ export function FinanceServicesPayments({ student, schoolYear }: { student: Stud
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Fonction pour convertir un nombre en lettres (simplifiée pour le français)
+  const numberToWords = (num: number): string => {
+    const units = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf'];
+    const teens = ['dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
+    const tens = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante-dix', 'quatre-vingt', 'quatre-vingt-dix'];
+
+    if (num === 0) return 'zéro';
+
+    let words = '';
+    let n = Math.floor(num);
+
+    if (n >= 1000000) {
+      words += numberToWords(Math.floor(n / 1000000)) + ' million ';
+      n %= 1000000;
+    }
+
+    if (n >= 1000) {
+      words += numberToWords(Math.floor(n / 1000)) + ' mille ';
+      n %= 1000;
+    }
+
+    if (n >= 100) {
+      words += units[Math.floor(n / 100)] + ' cent ';
+      n %= 100;
+    }
+
+    if (n >= 20) {
+      words += tens[Math.floor(n / 10)];
+      if (n % 10 > 0) {
+        words += '-' + units[n % 10];
+      }
+    } else if (n >= 10) {
+      words += teens[n - 10];
+    } else if (n > 0) {
+      words += units[n];
+    }
+
+    return words.trim();
   };
 
   const generateFinancialDossierPdf = async () => {
@@ -261,6 +330,42 @@ export function FinanceServicesPayments({ student, schoolYear }: { student: Stud
         {showDossierDialog && dossierProps && (
           <PrintDossierAfterPayment {...dossierProps} />
         )}
+        {/* Boîte de dialogue de confirmation */}
+        <Dialog open={showConfirmationDialog} onOpenChange={setShowConfirmationDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirmer le paiement</DialogTitle>
+            </DialogHeader>
+            {pendingPaymentData && (
+              <div className="space-y-4">
+                <div>
+                  <strong>Service:</strong> {pendingPaymentData.service.name}
+                </div>
+                <div>
+                  <strong>Montant en chiffres:</strong> {pendingPaymentData.parsedAmount.toLocaleString('fr-FR')} XAF
+                </div>
+                <div>
+                  <strong>Montant en lettres:</strong> {amountInWords} francs CFA
+                </div>
+                <div>
+                  <strong>Mode de paiement:</strong> {pendingPaymentData.method}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Voulez-vous vraiment enregistrer ce paiement ?
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowConfirmationDialog(false)}>
+                Annuler
+              </Button>
+              <Button onClick={confirmPayment} disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Confirmer
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Service</label>
